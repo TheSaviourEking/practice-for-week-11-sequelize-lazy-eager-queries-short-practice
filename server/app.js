@@ -14,7 +14,7 @@ app.use(express.json());
 // STEP 1: Example of lazy loading
 app.get('/bands-lazy/:id', async (req, res, next) => {
     const band = await Band.findByPk(req.params.id);
-    const bandMembers = await band.getMusicians({ order: [ ['firstName'] ] });
+    const bandMembers = await band.getMusicians({ order: [['firstName']] });
     const payload = {
         id: band.id,
         name: band.name,
@@ -29,24 +29,26 @@ app.get('/bands-lazy/:id', async (req, res, next) => {
 app.get('/bands-eager/:id', async (req, res, next) => {
     const payload = await Band.findByPk(req.params.id, {
         include: { model: Musician },
-        order: [ [Musician, 'firstName'] ]
+        order: [[Musician, 'firstName']]
     });
     res.json(payload);
 });
 
 // STEP 2: Lazy loading all bands
 app.get('/bands-lazy', async (req, res, next) => {
-    const allBands = await Band.findAll({ order: [ ['name'] ] })
+    const allBands = await Band.findAll({ order: [['name']] })
     const payload = [];
-    for(let i = 0; i < allBands.length; i++){
+    for (let i = 0; i < allBands.length; i++) {
         const band = allBands[i];
         // Your code here
+        const bandMembers = await band.getMusicians({ order: [['firstName']] });
         const bandData = {
             id: band.id,
             name: band.name,
             createdAt: band.createdAt,
             updatedAt: band.updatedAt,
             // Your code here
+            Musicians: bandMembers
         };
         payload.push(bandData);
     }
@@ -57,9 +59,70 @@ app.get('/bands-lazy', async (req, res, next) => {
 app.get('/bands-eager', async (req, res, next) => {
     const payload = await Band.findAll({
         // Your code here
+        order: [['name']],
+        include: { model: Musician }
     });
     res.json(payload);
 });
+
+const { Instrument, MusicianInstrument } = require('./db/models/index.js');
+// Bonus: More association practice
+// Lazy loading
+app.get('/get-instruments-lazy', async (req, res, next) => {
+    const instruments = await Instrument.findAll({ order: [['id']] });
+    const payload = [];
+    for (const instrument of instruments) {
+        const musicians = await instrument.getMusicians();
+        const instrumentData = {
+            id: instrument.id,
+            type: instrument.type,
+            createdAt: instrument.createdAt,
+            updatedAt: instrument.updatedAt,
+            Musicians: musicians
+        }
+        payload.push(instrumentData);
+    }
+    res.json(payload);
+})
+app.get('/get-instruments-lazy/:id', async (req, res, next) => {
+    try {
+        const instrument = await Instrument.findByPk(req.params.id);
+        if (instrument) {
+            const musician = await instrument.getMusicians();
+            const payload = {
+                id: instrument.id,
+                type: instrument.type,
+                createdAt: instrument.createdAt,
+                updatedAt: instrument.updatedAt,
+                Musicians: musician
+            };
+            res.json(payload);
+        } else {
+            res.json({ message: 'no such instrument' });
+        }
+    } catch (err) {
+        next(err);
+    }
+})
+
+// Eager Loading
+app.get('/get-instruments-eager', async (req, res, next) => {
+    const payload = await Instrument.findAll({
+        order: [['id'], [Musician, 'firstName']],
+        include: Musician
+    });
+    res.json(payload)
+})
+
+app.get('/get-instruments-eager/:id', async (req, res, next) => {
+    try {
+        const payload = await Instrument.findOne({
+            where: { id: req.params.id },
+            include: { model: Musician }
+        })
+        res.json(payload)
+    } catch (err) { next(err); }
+})
 
 // Root route - DO NOT MODIFY
 app.get('/', (req, res) => {
